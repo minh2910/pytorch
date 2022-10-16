@@ -1555,8 +1555,24 @@ def sample_inputs_adjoint(self, device, dtype, requires_grad, **kwargs):
 def sample_inputs_T(self, device, dtype, requires_grad, **kwargs):
     make_arg = partial(make_tensor, dtype=dtype, device=device, requires_grad=requires_grad)
 
-    shapes = ((), (M, M))
+    shapes = ((), (M, M), (M, L))
     return (SampleInput(make_arg(shape)) for shape in shapes)
+
+def error_inputs_T(self, device):
+    make_arg = partial(make_tensor, device=device, dtype=torch.float32)
+
+    # Deprecated behavior in regular PyTorch, but throws an error in primTorch:
+    # https://github.com/pytorch/pytorch/issues/86968
+    if self.name == '_refs.T':
+        # 1-dim tensors are not supported
+        yield ErrorInput(SampleInput(make_arg(M)),
+                         error_regex=(r'The use of `x\.T` on tensors of dimension other than 0 or 2 '
+                                      r'to reverse their shape is not supported\.'))
+
+        # dim > 2
+        yield ErrorInput(SampleInput(make_arg(M, S, L)),
+                         error_regex=(r'The use of `x\.T` on tensors of dimension other than 0 or 2 '
+                                      r'to reverse their shape is not supported\.'))
 
 
 def sample_inputs_singular_matrix_factors(op_info, device, dtype, requires_grad=False, **kwargs):
@@ -14727,7 +14743,8 @@ op_db: List[OpInfo] = [
                # lambda impl
                DecorateInfo(unittest.expectedFailure, 'TestNormalizeOperators', 'test_normalize_operator_exhaustive'),
                DecorateInfo(unittest.expectedFailure, "TestJit", "test_variant_consistency_jit"),),
-           sample_inputs_func=sample_inputs_T),
+           sample_inputs_func=sample_inputs_T,
+           error_inputs_func=error_inputs_T),
     OpInfo('H',
            op=lambda x: x.H,
            dtypes=all_types_and_complex_and(torch.bool, torch.bfloat16, torch.half, torch.chalf),
@@ -17524,6 +17541,10 @@ python_ref_db = [
     PythonRefInfo(
         "_refs.t",
         torch_opinfo_name="t",
+    ),
+    PythonRefInfo(
+        "_refs.T",
+        torch_opinfo_name="T",
     ),
     PythonRefInfo(
         "_refs.unfold",

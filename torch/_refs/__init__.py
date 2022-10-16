@@ -241,6 +241,7 @@ __all__ = [
     "swap_axes",  # alias for transpose
     "squeeze",
     "t",
+    "T",
     "tensor_split",
     "transpose",
     "unfold",
@@ -3549,6 +3550,21 @@ def t(a: TensorLikeType):
             f"t() expects a tensor with <= 2 dimensions, but self is {a.ndim}D"
         )
     return torch.transpose(a, 0, 0 if a.ndim < 2 else 1)
+
+
+# CompositeImplicitAutograd - don't register decomp
+def T(a: TensorLikeType) -> TensorLikeType:
+    # n != 2 && n != 0 is deprecated in regular PyTorch.  Maybe T could even be
+    # defined as an alias for t:
+    # https://github.com/pytorch/pytorch/issues/86968
+    check(
+        a.ndim in (0, 2),
+        lambda: (
+            "The use of `x.T` on tensors of dimension other than 0 or 2 "
+            "to reverse their shape is not supported."
+        ),
+    )
+    return a.t()
 
 
 @register_decomposition(torch.ops.aten.transpose, disable_meta=True)
